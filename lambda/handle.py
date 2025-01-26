@@ -1,12 +1,11 @@
 import json
 import boto3
 
-
-def lambda_function(event, context):
+def lambda_handler(event, context):
     try:
         # parser body request
         body = json.loads(event["body"])
-        id = body.get("id")
+        id = body.get("UserId")
         data = body.get("data")
 
         if not id or not data:
@@ -15,9 +14,13 @@ def lambda_function(event, context):
                 "body": json.dumps({"error": "Missing 'id' or 'data' in request"}),
             }
         # insert data on dynamodb
-        dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+        dynamodb = boto3.resource(
+            "dynamodb",
+            region_name="us-east-1",
+            endpoint_url="http://localhost:4566"  # LocalStack URL
+        )   
         table = dynamodb.Table("TestTable")
-        table.put_item(Item={"id": id, "data": data})
+        table.put_item(Item={"UserId": id, "data": data})
 
         return {
             "status_code": 200,
