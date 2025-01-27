@@ -1,6 +1,7 @@
 import json
 import boto3
 
+
 def lambda_handler(event, context):
     try:
         # parser body request
@@ -17,11 +18,14 @@ def lambda_handler(event, context):
         dynamodb = boto3.resource(
             "dynamodb",
             region_name="us-east-1",
-            endpoint_url="http://localhost:4566"  # LocalStack URL
-        )   
+            endpoint_url="http://localhost:4566",  # LocalStack URL
+        )
         table = dynamodb.Table("TestTable")
         table.put_item(Item={"UserId": id, "data": data})
-
+        
+        response = table.put_item(Item={"UserId": id, "data": data})
+        print(f"DynamoDB Response: {response}")
+        
         return {
             "status_code": 200,
             "body": json.dumps({"status": "Data inserted succesfully"}),
