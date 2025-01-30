@@ -27,22 +27,20 @@ resource "aws_api_gateway_integration" "lambda_integration" {
 
 resource "aws_api_gateway_deployment" "api_deployment" {
   rest_api_id = aws_api_gateway_rest_api.api-gateway.id
-  depends_on = [
-    aws_api_gateway_method.post_method,
-    aws_api_gateway_integration.lambda_integration,
-  ]
+  triggers = {
+    redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.insert_resource.id,
+      aws_api_gateway_method.post_method.id,
+      aws_api_gateway_integration.lambda_integration.id
+    ]))
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_api_gateway_stage" "api_stage" {
   deployment_id = aws_api_gateway_deployment.api_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.api-gateway.id
   stage_name    = "test"
-}
-
-resource "aws_lambda_permission" "allow_api_gateway" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.insert_handler.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.api-gateway.execution_arn}/*/*"
 }

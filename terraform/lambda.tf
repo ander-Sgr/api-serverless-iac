@@ -1,40 +1,69 @@
-data "aws_iam_policy_document" "assume_role" {
-  statement {
-    effect = "Allow"
+resource "aws_iam_role" "lambda_exec_role" {
+  name = "lambda_exec_role_v2"
 
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRole"]
+  assume_role_policy = <<EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Action": "sts:AssumeRole",
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "lambda.amazonaws.com"
+        }
+      }
+    ]
   }
+  EOF
 }
 
-# create an iam role for lambda
-resource "aws_iam_role" "lamba_exec_role" {
-  name               = "lambda_exec_role"
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
+resource "aws_iam_role_policy" "lambda_exec_policy" {
+  role   = aws_iam_role.lambda_exec_role.id
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
 }
 
-resource "aws_iam_policy" "lambda_policy" {
-  policy = file("${path.module}/policy.json")
-  name   = "lambda_dynamodb_policy"
-}
 
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy" {
-  policy_arn = aws_iam_policy.lambda_policy.arn
-  role       = aws_iam_role.lamba_exec_role.name
-}
 
-# lambda resource 
+# lambda function 
 resource "aws_lambda_function" "insert_handler" {
-  function_name = "lambda_handler"
-  handler       = "handler.lambda_handler"
-  runtime       = "python3.10"
-  role          = aws_iam_role.lamba_exec_role.arn
+  function_name = "lambda_handler_function"
+  handler       = "handle.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_exec_role.arn
 
-  filename = "${path.module}/../lambda/lambda.zip"
-
+  filename         = "./../lambda/lambda.zip"
+  source_code_hash = filebase64sha256("./../lambda/lambda.zip")
+  timeout          = 30
 }
 
+resource "aws_lambda_permission" "allow_api_gateway" {
+  statement_id  = "AllowExecutionFromApiGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.insert_handler.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.api-gateway.execution_arn}/*/*"
+}
